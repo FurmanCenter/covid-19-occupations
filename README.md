@@ -223,7 +223,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-any_share-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-any_share-income.png)<!-- -->
+![](img/nyc_occ-risk-any_share-income.png)<!-- -->
 
 ``` r
 # Households with at least one member employed in a more vulnerable occupation
@@ -262,7 +262,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-any_households-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-any_households-income.png)<!-- -->
+![](img/nyc_occ-risk-any_households-income.png)<!-- -->
 
 ``` r
 # Renter share of households with at least one member employed in a more
@@ -302,7 +302,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-any_renter-share-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-any_renter-share-income.png)<!-- -->
+![](img/nyc_occ-risk-any_renter-share-income.png)<!-- -->
 
 ``` r
 # Households with all employed members in more vulnerable occupations by
@@ -341,7 +341,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-all_households-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-all_households-income.png)<!-- -->
+![](img/nyc_occ-risk-all_households-income.png)<!-- -->
 
 ``` r
 # Share of households with all employed members in more vulnerable occupations
@@ -381,7 +381,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-all_share-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-all_share-income.png)<!-- -->
+![](img/nyc_occ-risk-all_share-income.png)<!-- -->
 
 ``` r
 # Median rent for households with at least one member employed in a more
@@ -422,7 +422,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk-any_rent-income.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk-any_rent-income.png)<!-- -->
+![](img/nyc_occ-risk-any_rent-income.png)<!-- -->
 
 ``` r
 # Share of wage earners employed in more vulnerable occupations by
@@ -462,7 +462,7 @@ p <- ipums_clean %>%
 plot_save_include(here("img", "nyc_occ-risk_pop-share-race.png"))
 ```
 
-![](/Users/maxwell/repos/covid-19-occupations/img/nyc_occ-risk_pop-share-race.png)<!-- -->
+![](img/nyc_occ-risk_pop-share-race.png)<!-- -->
 
 ### Stats
 
