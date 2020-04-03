@@ -1,6 +1,10 @@
 Covid-19 Occupation Analysis
 ================
 
+Maxwell Austensen ([@austensen](https://github.com/austensen))  
+Hayley Raetz ([@hayley-raetz](https://github.com/hayley-raetz))  
+Jiaqi Dong ([@Mocha22ol](https://github.com/Mocha22ol))
+
 ``` r
 # Install required packages 
 
@@ -69,6 +73,24 @@ occ_risk_xwalk <- occ_risk_sheet %>%
 ```
 
 ### Data Preparation
+
+All data for this analysis comes from [*IPUMS USA, University of
+Minnesota*](https://usa.ipums.org/). To build on this analysis and/or
+replicate it for a different geography, you can sign up for a free
+account and download your own extract of the data. From the IPUMS USA
+page, go to *Select Data* and choose the variables. In addition to to
+automatically pre-selected variables, you’ll to select the following
+other variables: `statefip`, `countyfip`, `puma`, `occ`, `incwage`,
+`hhincome`, `ownershp`, `rentgrs`, `hispan`, and `race`. Then click
+*Change Samples* to select the data sample you want to use (for this
+analysis we have used ACS 2018 1-year). Once you have all your variables
+and samples selected, click *View Cart* and then *Create Extract*. The
+default options here are fine (format: .csv, structure: Rectangular
+(person)), and by default you’ll download data for the whole country.
+You can click *Select Cases*, then `statefip` to export data for only
+the states you select. Once the request is complete, download the file
+to the `/data` folder and adjust the following section of code to
+reflect your file name and filter to your desired geography.
 
 ``` r
 # Read in IPUMS USA ACS microdata, filter to desired geography

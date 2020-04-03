@@ -12,6 +12,10 @@ knitr::opts_chunk$set(
 )
 ```
 
+Maxwell Austensen ([\@austensen](https://github.com/austensen))  
+Hayley Raetz ([\@hayley-raetz](https://github.com/hayley-raetz))  
+Jiaqi Dong ([\@Mocha22ol](https://github.com/Mocha22ol))
+
 ```{r}
 # Install required packages 
 
@@ -70,6 +74,8 @@ occ_risk_xwalk <- occ_risk_sheet %>%
 ```
 
 ### Data Preparation
+
+All data for this analysis comes from [_IPUMS USA, University of Minnesota_](https://usa.ipums.org/). To build on this analysis and/or replicate it for a different geography, you can sign up for a free account and download your own extract of the data. From the IPUMS USA page, go to _Select Data_ and choose the variables. In addition to to automatically pre-selected variables, you'll to select the following other variables: `statefip`, `countyfip`, `puma`, `occ`, `incwage`, `hhincome`, `ownershp`, `rentgrs`, `hispan`, and `race`. Then click _Change Samples_ to select the data sample you want to use (for this analysis we have used ACS 2018 1-year). Once you have all your variables and samples selected, click _View Cart_ and then _Create Extract_. The default options here are fine (format: .csv, structure: Rectangular (person)), and by default you'll download data for the whole country. You can click _Select Cases_, then `statefip` to export data for only the states you select. Once the request is complete, download the file to the `/data` folder and adjust the following section of code to reflect your file name and filter to your desired geography. 
 
 ```{r}
 # Read in IPUMS USA ACS microdata, filter to desired geography
