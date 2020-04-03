@@ -9,7 +9,6 @@ Covid-19 Occupation Analysis
 #   "googlesheets4",
 #   "hrbrthemes",
 #   "srvyr",
-#   "here",
 #   "knitr",
 #   "rmarkdown",
 #   "dotenv"
@@ -21,14 +20,12 @@ Covid-19 Occupation Analysis
 ``` r
 library(tidyverse) # general data manipulation and graphing
 library(googlesheets4) # google sheets
-library(scales) # number formatting
 library(srvyr) # survey functions
-library(here) # relative file paths
 library(knitr) # markdown table with kable()
 library(dotenv) # load environment variables from ".env" file
 
 # Load custom functions to help with plotting
-source(here("R", "utils.R"))
+source("R/utils.R")
 
 # No scientific notation in outputs
 options(scipen = 999)
@@ -39,7 +36,7 @@ options(scipen = 999)
 # You must set your google email in the ".env" file (see ".env_sample")
 options(
   gargle_oauth_email = Sys.getenv("GOOGLE_EMAIL"),
-  gargle_oauth_cache = here(".cache")
+  gargle_oauth_cache = ".cache"
 )
 
 sheets_auth()
@@ -75,8 +72,7 @@ occ_risk_xwalk <- occ_risk_sheet %>%
 
 ``` r
 # Read in IPUMS USA ACS microdata, filter to desired geography
-ipums_raw <- here("data", "ipums_acs-2018-1yr_ny.csv") %>% 
-  read_csv() %>% 
+ipums_raw <- read_csv("data/ipums_acs-2018-1yr_ny.csv") %>% 
   rename_all(str_to_lower) %>% 
   filter(
     # Keep only NYC
@@ -198,13 +194,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(risk_pct = survey_mean(hh_any_risk, vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_pct(
+  fc_col_plot(
     x = hh_inc_grp,
     y = risk_pct,
-    y_limits = c(0, 1),
     ymin = risk_pct_low,
     ymax = risk_pct_upp,
-    accuracy = 1
+    y_limits = c(0, 1),
+    y_format = "percent"
   ) +
   labs(
     title = str_glue(
@@ -220,7 +216,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk-any_share-income.png"))
+plot_save_include("img/nyc_occ-risk-any_share-income.png")
 ```
 
 ![](img/nyc_occ-risk-any_share-income.png)<!-- -->
@@ -238,12 +234,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(households = survey_total(vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_si(
+  fc_col_plot(
     x = hh_inc_grp,
     y = households,
     y_limits = c(0, 300000),
     ymin = households_low,
-    ymax = households_upp
+    ymax = households_upp,
+    y_format = "si"
   ) +
   labs(
     title = str_glue(
@@ -259,7 +256,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk-any_households-income.png"))
+plot_save_include("img/nyc_occ-risk-any_households-income.png")
 ```
 
 ![](img/nyc_occ-risk-any_households-income.png)<!-- -->
@@ -277,13 +274,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(renter_pct = survey_mean(is_renter, vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_pct(
+  fc_col_plot(
     x = hh_inc_grp,
     y = renter_pct,
     y_limits = c(0, 1),
     ymin = renter_pct_low,
     ymax = renter_pct_upp,
-    accuracy = 1
+    y_format = "percent"
   ) +
   labs(
     title = str_glue(
@@ -299,7 +296,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk-any_renter-share-income.png"))
+plot_save_include("img/nyc_occ-risk-any_renter-share-income.png")
 ```
 
 ![](img/nyc_occ-risk-any_renter-share-income.png)<!-- -->
@@ -317,12 +314,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(households = survey_total(vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_si(
+  fc_col_plot(
     x = hh_inc_grp,
     y = households,
     y_limits = c(0, 250000),
     ymin = households_low,
-    ymax = households_upp
+    ymax = households_upp,
+    y_format = "si"
   ) +
   labs(
     title = str_glue(
@@ -338,7 +336,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk-all_households-income.png"))
+plot_save_include("img/nyc_occ-risk-all_households-income.png")
 ```
 
 ![](img/nyc_occ-risk-all_households-income.png)<!-- -->
@@ -356,13 +354,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(risk_pct = survey_mean(hh_all_risk, vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_pct(
+  fc_col_plot(
     x = hh_inc_grp,
     y = risk_pct,
     y_limits = c(0, 0.75),
     ymin = risk_pct_low,
     ymax = risk_pct_upp,
-    accuracy = 1
+    y_format = "percent"
   ) +
   labs(
     title = str_glue(
@@ -377,8 +375,8 @@ p <- ipums_clean %>%
       Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
     )
   )
-
-plot_save_include(here("img", "nyc_occ-risk-all_share-income.png"))
+  
+plot_save_include("img/nyc_occ-risk-all_share-income.png")
 ```
 
 ![](img/nyc_occ-risk-all_share-income.png)<!-- -->
@@ -397,13 +395,13 @@ p <- ipums_clean %>%
   group_by(hh_inc_grp, .drop = FALSE) %>% 
   summarise(gross_rent_nom_med = survey_median(gross_rent_nom, vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
-  col_plot_dollar(
+  fc_col_plot(
     x = hh_inc_grp,
     y = gross_rent_nom_med,
     y_limits = c(0, 2500),
     ymin = gross_rent_nom_med_low,
     ymax = gross_rent_nom_med_upp,
-    accuracy = 1
+    y_format = "dollar"
   ) +
   labs(
     title = str_glue(
@@ -419,7 +417,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk-any_rent-income.png"))
+plot_save_include("img/nyc_occ-risk-any_rent-income.png")
 ```
 
 ![](img/nyc_occ-risk-any_rent-income.png)<!-- -->
@@ -437,13 +435,13 @@ p <- ipums_clean %>%
   summarise(pop_pct = survey_mean(risk_group, vartype = "ci", level = 0.90)) %>% 
   ungroup() %>% 
   mutate(race_name = fct_reorder(race_name, -pop_pct)) %>% 
-  col_plot_pct(
+  fc_col_plot(
     x = race_name,
     y = pop_pct,
     y_limits = c(0, 0.6),
     ymin = pop_pct_low,
     ymax = pop_pct_upp,
-    accuracy = 1
+    y_format = "percent"
   ) +
   labs(
     title = str_glue(
@@ -459,7 +457,7 @@ p <- ipums_clean %>%
     )
   )
 
-plot_save_include(here("img", "nyc_occ-risk_pop-share-race.png"))
+plot_save_include("img/nyc_occ-risk_pop-share-race.png")
 ```
 
 ![](img/nyc_occ-risk_pop-share-race.png)<!-- -->
