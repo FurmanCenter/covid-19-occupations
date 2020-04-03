@@ -1,0 +1,5 @@
+.DS_Store
+.cache
+.env
+.Rproj.user
+analysis_files
