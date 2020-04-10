@@ -330,7 +330,7 @@ plot_save_include("img/nyc_occ-risk-any_renter-share-income.png")
 p <- ipums_clean %>% 
   filter(
     pernum == 1, # keep only one row per household
-    hh_any_risk # keep only households with at least one wage earner in vulnerable occupation
+    hh_all_risk # keep only households with all wage earners in vulnerable occupations
   ) %>% 
   as_survey_design(weights = hhwt) %>% 
   group_by(hh_inc_grp, .drop = FALSE) %>% 
