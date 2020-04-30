@@ -5,6 +5,15 @@ Maxwell Austensen ([@austensen](https://github.com/austensen))
 Hayley Raetz ([@hayley-raetz](https://github.com/hayley-raetz))  
 Jiaqi Dong ([@Mocha22ol](https://github.com/Mocha22ol))
 
+The analysis presented here appears in these two blog posts:
+
+[*What are the Housing Costs of Households Most Vulnerable to Job
+Layoffs? An Initial
+Analysis*](https://furmancenter.org/thestoop/entry/what-are-the-housing-costs-of-households-most-vulnerable-to-job-layoffs-an)
+
+[*COVID-19 and the Rental
+Market*](https://furmancenter.org/thestoop/entry/covid-19-and-the-rental-market)
+
 ``` r
 # Install required packages 
 
@@ -15,6 +24,7 @@ Jiaqi Dong ([@Mocha22ol](https://github.com/Mocha22ol))
 #   "srvyr",
 #   "knitr",
 #   "rmarkdown",
+#   "sf",
 #   "dotenv"
 # )
 
@@ -26,6 +36,7 @@ library(tidyverse) # general data manipulation and graphing
 library(googlesheets4) # google sheets
 library(srvyr) # survey functions
 library(knitr) # markdown table with kable()
+library(sf) # spatial data
 library(dotenv) # load environment variables from ".env" file
 
 # Load custom functions to help with plotting
@@ -81,20 +92,21 @@ account and download your own extract of the data. From the IPUMS USA
 page, go to *Select Data* and choose the variables. In addition to to
 automatically pre-selected variables, you’ll to select the following
 other variables: `statefip`, `countyfip`, `puma`, `occ`, `incwage`,
-`hhincome`, `ownershp`, `rentgrs`, `hispan`, and `race`. Then click
-*Change Samples* to select the data sample you want to use (for this
-analysis we have used ACS 2018 1-year). Once you have all your variables
-and samples selected, click *View Cart* and then *Create Extract*. The
-default options here are fine (format: .csv, structure: Rectangular
-(person)), and by default you’ll download data for the whole country.
-You can click *Select Cases*, then `statefip` to export data for only
-the states you select. Once the request is complete, download the file
-to the `/data` folder and adjust the following section of code to
-reflect your file name and filter to your desired geography.
+`hhincome`, `ownershp`, `rentgrs`, `unitsstr`, `hispan`, and `race`.
+Then click *Change Samples* to select the data sample you want to use
+(for this analysis we have used ACS 2018 1-year). Once you have all your
+variables and samples selected, click *View Cart* and then *Create
+Extract*. The default options here are fine (format: .csv, structure:
+Rectangular (person)), and by default you’ll download data for the whole
+country. You can click *Select Cases*, then `statefip` to export data
+for only the states you select. Once the request is complete, download
+the file to the `/data` folder and adjust the following section of code
+to reflect your file name and filter to your desired geography.
 
 ``` r
 # Read in IPUMS USA ACS microdata, filter to desired geography
-ipums_raw <- read_csv("data/ipums_acs-2018-1yr_ny.csv") %>% 
+
+ipums_raw <- read_csv("data/ipums_acs-2018-1yr_ny.csv.gz") %>% 
   rename_all(str_to_lower) %>% 
   filter(
     # Keep only NYC
@@ -165,7 +177,16 @@ ipums_clean <- ipums_raw %>%
       race == 7 ~ "Non-Hispanic\nother",
       race == 8 ~ "Non-Hispanic\nTwo or more\nmajor races", # Two major races
       race == 9 ~ "Non-Hispanic\nTwo or more\nmajor races" # Three or more major races
-    )
+    ),
+    bldg_size = case_when(
+      unitsstr %in% 3:4 ~ "1",
+      unitsstr %in% 5:6 ~ "2-4",
+      unitsstr == 7 ~ "5-9",
+      unitsstr == 8 ~ "10-19",
+      unitsstr == 9 ~ "20-49",
+      unitsstr == 10 ~ "50+",
+      TRUE ~ "other"
+    ) %>% ordered(levels = c("1","2-4","5-9","10-19","20-49","50+", "other"))
   ) %>% 
   # Group by household and categorize households based or occupations of members
   group_by(serial) %>% 
@@ -484,7 +505,404 @@ plot_save_include("img/nyc_occ-risk_pop-share-race.png")
 
 ![](img/nyc_occ-risk_pop-share-race.png)<!-- -->
 
-### Stats
+``` r
+# Create distributions of renter households by building size, for "any risk"
+# (more vulnerable) and "no risk" (less vulnerable), including CIs
+
+size_more_vul <- ipums_clean %>%
+  filter(
+    pernum == 1, # keep only one row per household
+    hh_any_risk, # keep only households with at least one wage earner in vulnerable occupation
+    is_renter #keep only renter households
+  ) %>% 
+  as_survey_design(weights = perwt) %>%
+  group_by(bldg_size, .drop = FALSE) %>%
+  summarise(households = survey_total(vartype = "ci", level = 0.90))
+
+total_more_vul <- size_more_vul %>%
+  mutate(
+    households_moe = households_upp - households,
+    households_moe_sqr = households_moe^2
+  ) %>%
+  summarize(
+    total = sum(households),
+    total_moe = sqrt(sum(households_moe_sqr))
+  )
+
+size_more_vul_rates <- size_more_vul %>%
+  mutate(
+    households_moe = households_upp - households,
+    total = total_more_vul[["total"]],
+    total_moe = total_more_vul[["total_moe"]],
+    share = households / total,
+    share_moe = (1 / total) * sqrt(households_moe^2 - (share * total_moe)^2),
+    share_low = share - share_moe,
+    share_upp = share + share_moe
+  ) %>%
+  select(bldg_size, share, share_low, share_upp) %>%
+  mutate(category = "More vulnerable")
+
+
+size_less_vul <- ipums_clean %>%
+  filter(
+    pernum == 1, # keep only one row per household
+    !hh_any_risk, # keep only households without at least one wage earner in vulnerable occupation
+    is_renter #keep only renter households
+  ) %>% 
+  as_survey_design(weights = perwt) %>%
+  group_by(bldg_size, .drop = FALSE) %>%
+  summarise(households = survey_total(vartype = "ci", level = 0.90))
+
+total_less_vul <- size_less_vul %>%
+  mutate(
+    households_moe = households_upp - households,
+    households_moe_sqr = households_moe^2
+  ) %>%
+  summarize(
+    total = sum(households),
+    total_moe = sqrt(sum(households_moe_sqr))
+  )
+
+size_less_vul_rates <- size_less_vul %>%
+  mutate(
+    households_moe = households_upp - households,
+    total = total_less_vul[["total"]],
+    total_moe = total_less_vul[["total_moe"]],
+    share = households / total,
+    share_moe = (1 / total) * sqrt(households_moe^2 - (share * total_moe)^2),
+    share_low = share - share_moe,
+    share_upp = share + share_moe
+  ) %>%
+  select(bldg_size, share, share_low, share_upp) %>%
+  mutate(category = "Less vulnerable")
+```
+
+``` r
+p <- bind_rows(size_less_vul_rates, size_more_vul_rates) %>% 
+  filter(bldg_size != "other") %>% 
+  fc_col_plot_cluster(
+    x = bldg_size,
+    y = share,
+    fill = category,
+    y_limits = c(0, 0.5),
+    ymin = share_low,
+    ymax = share_upp,
+    y_format = "percent"
+  ) +
+  scale_fill_manual(values = c("#2c7fb8", "#98e2c9")) +
+  labs(
+    title = str_glue(
+      "Distribution of renter households across building sizes, by economic vulnerability"
+    ),
+    subtitle = "New York City, 2018",
+    x = "Units in building",
+    y = "Share of households",
+    fill = NULL,
+    caption = str_glue(
+      "Notes: Only renter households with at least one emloyed member are included. Households are considered  more vulnerable if at least one member works 
+      in a vulnerable occupation and households without any members in such occupations are considered less vulnerable. 
+      Error bars represent 90% confidence intervals, and value labels reflect point estimates.
+      Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
+    )
+  )
+
+plot_save_include("img/nyc_renter-risk_bldg_size.png")
+```
+
+![](img/nyc_renter-risk_bldg_size.png)<!-- -->
+
+``` r
+# Calculate various stats about renter households for the same more and less
+# vulnerable groups as above.
+
+more_less_vul_stats <- ipums_clean %>% 
+  filter(
+    pernum == 1, # keep only one row per household
+    !is.na(hh_any_risk), # keep only households with at least one wage earner
+    is_renter # keep only renter households
+  ) %>% 
+  as_survey_design(weights = hhwt) %>% 
+  group_by(hh_any_risk) %>% 
+  summarise(
+    hh_gross_rent_med = survey_median(gross_rent_nom, vartype = "ci", level = 0.90),
+    hh_gross_rent = survey_quantile(gross_rent_nom, 0.75, vartype = "ci", level = 0.90),
+    hh_rent_burdened_pct = survey_mean(is_rent_burdened, vartype = "ci", level = 0.90),
+    hh_rent_burdened_mod_pct = survey_mean(is_rent_burdened_mod, vartype = "ci", level = 0.90),
+    hh_rent_burdened_sev_pct = survey_mean(is_rent_burdened_sev, vartype = "ci", level = 0.90)
+  ) %>% 
+  ungroup() %>% 
+  pivot_longer(-hh_any_risk) %>% 
+  mutate(
+    type = case_when(
+      str_detect(name, "_low") ~ "low",
+      str_detect(name, "_upp") ~ "upp",
+      TRUE ~ "est"
+    ),
+    name = str_remove(name, "(_low|_upp)"),
+    hh_any_risk = recode(as.character(hh_any_risk), "TRUE" = "More vulnerable", "FALSE" = "Less vulnerable")
+  ) %>% 
+  pivot_wider(names_from = type, values_from = value)
+```
+
+``` r
+p <- more_less_vul_stats %>% 
+  filter(str_detect(name, "gross_rent")) %>% 
+  mutate(
+    name = name %>% 
+      recode("hh_gross_rent_med" = "Median", "hh_gross_rent_q75" = "75th Percentile") %>% 
+      ordered(levels = c("Median", "75th Percentile"))
+  ) %>% 
+  fc_col_plot_cluster(
+    x = name,
+    y = est,
+    fill = hh_any_risk,
+    y_limits = c(0, 3000),
+    ymin = low,
+    ymax = upp,
+    y_format = "dollar"
+  ) +
+  scale_fill_manual(values = c("#2c7fb8", "#98e2c9")) +
+  labs(
+    title = str_glue(
+      "Monthly gross rent, by economic vulnerability"
+    ),
+    subtitle = "New York City, 2018",
+    x = NULL,
+    y = "Monthly gross rent",
+    fill = NULL,
+    caption = str_glue(
+      "Notes: Only renter households with at least one emloyed member are included. Households are considered  more vulnerable if at least one member works 
+      in a vulnerable occupation and households without any members in such occupations are considered less vulnerable. 
+      Error bars represent 90% confidence intervals, and value labels reflect point estimates.
+      Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
+    )
+  )
+
+plot_save_include("img/nyc_renter-risk_gross-rent.png")
+```
+
+![](img/nyc_renter-risk_gross-rent.png)<!-- -->
+
+``` r
+p <- more_less_vul_stats %>% 
+  filter(str_detect(name, "burden")) %>% 
+  mutate(
+    name = name %>% 
+      recode("hh_rent_burdened_pct" = "Rent burdened (>30%)", 
+             "hh_rent_burdened_mod_pct" = "Moderately rent burdened (30%-50%)", 
+             "hh_rent_burdened_sev_pct" = "Severely rent burdened (>50%)") %>% 
+      ordered(levels = c("Rent burdened (>30%)", "Moderately rent burdened (30%-50%)", "Severely rent burdened (>50%)"))
+  ) %>% 
+  fc_col_plot_cluster(
+    x = name,
+    y = est,
+    fill = hh_any_risk,
+    y_limits = c(0, 0.6),
+    ymin = low,
+    ymax = upp,
+    y_format = "percent"
+  ) +
+  scale_fill_manual(values = c("#2c7fb8", "#98e2c9")) +
+  labs(
+    title = str_glue(
+      "Share of renter households that are rent burdened, by economic vulnerability"
+    ),
+    subtitle = "New York City, 2018",
+    x = NULL,
+    y = "Share of renter households",
+    fill = NULL,
+    caption = str_glue(
+      "Notes: Only renter households with at least one emloyed member are included. Households are considered  more vulnerable if at least one member works 
+      in a vulnerable occupation and households without any members in such occupations are considered less vulnerable. 
+      Error bars represent 90% confidence intervals, and value labels reflect point estimates.
+      Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
+    )
+  )
+
+plot_save_include("img/nyc_renter-risk_rent-burden.png")
+```
+
+![](img/nyc_renter-risk_rent-burden.png)<!-- -->
+
+### Maps
+
+To map the results of this analysis at the neighborhood level, the first
+step is to prepare the geomoetries for Public Use Microdata Areas
+(PUMAs). For New York City the city has a dataset of PUMAs already
+nicely clipped to the shoreline, for here we’ll be using those and
+joining on the neighborhood names.
+
+``` r
+# Get NYC PUMAs from NYC Open Data, and attach local neighborhood names
+
+nyc_puma_names <- read_csv("data/nyc_puma_names.csv")
+
+nyc_pumas_url <- "https://data.cityofnewyork.us/api/geospatial/cwiz-gcty?method=export&format=GeoJSON"
+nyc_pumas <- read_sf(nyc_pumas_url) %>% 
+  transmute(puma = as.numeric(puma)) %>% 
+  st_transform(2263) %>% # local state plane projection for NYC
+  st_simplify(dTolerance = 100) # reduce the detail of the polygons
+```
+
+Elsewhere in the country the best option for getting the geomoetries is
+to use the [`tigris`](https://github.com/walkerke/tigris) R package to
+download Tiger/Line shapefiles from the US Census Bureau.
+
+``` r
+# {NOT RUN}
+# Example of getting PUMA geometries using tirgis package. 
+library(tigris)
+
+# Easiest option will be to get all PUMAs in the state, then innner join to the NYC IPUMS data
+ny_pumas <- tigris::pumas("NY", class = "sf") %>% 
+  transmute(
+    statefip = STATEFP10,
+    puma = as.numeric(PUMACE10),
+    puma_name = NAMELSAD10
+  )
+```
+
+``` r
+# Set some of the options once here to recude repetition below
+survey_mean_ci90 <- purrr::partial(survey_mean, vartype = "ci", level = 0.90)
+
+ipums_puma <- ipums_clean %>% 
+  filter(
+    pernum == 1, # keep only one row per household
+    # is_renter, # keep only renter households
+    !is.na(hh_any_risk) # remove households with no wage earners
+  ) %>% 
+  as_survey_design(weights = hhwt) %>% 
+  # In NYC pumas nest within county, so helpful to keep county/borough IDs
+  group_by(countyfip, puma) %>% 
+  summarise(
+    hh_any_risk_renter_pct = survey_mean_ci90(hh_any_risk*na_if(is_renter, FALSE), na.rm = TRUE),
+    hh_all_risk_renter_pct = survey_mean_ci90(hh_any_risk*na_if(is_renter, FALSE), na.rm = TRUE),
+    hh_any_risk_pct = survey_mean_ci90(hh_any_risk),
+    hh_all_risk_pct = survey_mean_ci90(hh_any_risk),
+  ) %>% 
+  ungroup() %>% 
+  mutate(
+    hh_any_risk_pct_moe = hh_any_risk_pct_upp - hh_any_risk_pct,
+    hh_anll_risk_pct_moe = hh_all_risk_pct_upp - hh_all_risk_pct,
+    hh_any_risk_renter_pct_moe = hh_any_risk_renter_pct_upp - hh_any_risk_renter_pct,
+    hh_anll_risk_renter_pct_moe = hh_all_risk_renter_pct_upp - hh_all_risk_renter_pct,
+    # Suppress the most unreliable observations, then bin for map
+    # See notes below about using reliability claculator to decide on these bins
+    hh_any_risk_renter_pct_grp = ifelse(hh_any_risk_renter_pct_moe > 0.07, NA_real_, hh_any_risk_renter_pct) %>% 
+      cut(
+        breaks = c(-Inf, 0.4, 0.6, Inf),
+        labels = c("< 40%", "40% - 60%", ">= 60%"),
+        include.lowest = TRUE,
+        ordered_result = TRUE
+      ) %>% 
+        fct_explicit_na("Insufficient Data")
+  ) %>% 
+  select(-matches(".*_(upp|low)$")) %>% 
+  left_join(nyc_pumas, by = "puma") %>% 
+  left_join(nyc_puma_names, by = "puma") %>% 
+  st_as_sf() # dataframe takes class of left table, so change back to spatial type
+```
+
+``` r
+p <- ggplot(ipums_puma) +
+  aes(fill = hh_any_risk_renter_pct) +
+  geom_sf(size = 0.1, color = "white") +
+  scale_fill_viridis_c(labels = scales::percent_format(1), option = "inferno") +
+  theme_fc_map() +
+  theme( # some NYC specific tweaks
+    legend.position = c(0, .85),
+    legend.direction = "vertical",
+    legend.margin = margin(0, 0, 0, 0)
+  ) +
+  labs(
+    title = str_glue(
+      "Share of renter households with at least one member 
+      employed in a more vulnerable occupation"
+    ),
+    subtitle = "New York City, Sub-Borough Areas (PUMAs), 2018",
+    fill = "Share of renter households",
+    caption = str_glue(
+      "Notes: The denominator includes only renter households with at least one wage earner
+      Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
+    )
+  )
+
+plot_save_include("img/nyc_occ-risk-any-renter_share-map.png", height = 7, width = 7)
+```
+
+![](img/nyc_occ-risk-any-renter_share-map.png)<!-- -->
+
+The above map doesn’t take in account the reliability of the estimates.
+Below the Sub Borough Areas (PUMAs) are categorized into three bins and
+pumas with the most unreliable estimates (90% MOE \> 7 percentage
+points) are suppressed. These categories were selected with the help of
+the R package
+[`mapreliability`](https://github.com/austensen/mapreliability) and the
+interactive tool
+[`reliability_calculator()`](https://github.com/austensen/mapreliability#reliability-calculator)
+to ensure that there is an acceptable level of potential
+missclassification as a result of sampling error. With this
+classification, and the most unreliable estimate excluded, there is less
+than a 10% that chance any given geography in this map is misclassified
+due to sampling error, and for each individual category, there is less
+than a 20% chance that any given geography is misclassified due to
+sampling
+error.
+
+``` r
+library(mapreliability) # remotes::install_github("austensen/mapreliability")
+
+ipums_puma %>% 
+  filter(hh_any_risk_renter_pct_moe <= 0.07) %>% 
+  reliability_table_custom(hh_any_risk_renter_pct, hh_any_risk_renter_pct_moe, c(0, 0.4, 0.6))
+```
+
+    ## # A tibble: 3 x 5
+    ##   class_breaks count tot_count reliability tot_reliability
+    ##          <dbl> <int>     <int>       <dbl>           <dbl>
+    ## 1          0      13        40       11.6             9.61
+    ## 2          0.4    18        40        7.51            9.61
+    ## 3          0.6     9        40       10.9             9.61
+
+``` r
+p <- ggplot(ipums_puma) +
+  aes(fill = hh_any_risk_renter_pct_grp) +
+  geom_sf(size = 0.1, color = "white") +
+  scale_fill_manual(
+    values = c(viridisLite::inferno(3, begin = 0.1, end = 0.9), "grey60"), 
+    guide = guide_legend(reverse = TRUE)
+  ) +
+  # scale_fill_viridis_d(guide = guide_legend(reverse = TRUE)) +
+  theme_fc_map() +
+  theme( # some NYC specific tweaks
+    legend.position = c(0, .85),
+    legend.direction = "vertical",
+    legend.margin = margin(0, 0, 0, 0)
+  ) +
+  labs(
+    title = str_glue(
+      "Share of renter households with at least one member 
+      employed in a more vulnerable occupation"
+    ),
+    subtitle = "New York City, Sub-Borough Areas (PUMAs), 2018",
+    fill = "Share of renter households",
+    caption = str_glue(
+      "Notes: The denominator includes only renter households with at least one wage earner. 
+      Areas with margin of error (90%) greater than 7 percentage points are not shown. 
+      There is less than a 10% that chance any given geography in this map is misclassified 
+      due to sampling error, and for each individual category, there is less than a 20% chance 
+      that any given geography is misclassified due to sampling error.
+      Sources: American Community Survey (2018), IPUMS USA, NYU Furman Center"
+    )
+  )
+
+plot_save_include("img/nyc_occ-risk-any-renter_share-grp-map.png", height = 7, width = 7)
+```
+
+![](img/nyc_occ-risk-any-renter_share-grp-map.png)<!-- -->
+
+### Tables
 
 ``` r
 # Total number of households
